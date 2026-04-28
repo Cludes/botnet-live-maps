@@ -107,7 +107,8 @@ async function main() {
   console.log('Fetching Feodo Tracker blocklist...');
   const raw = await get(FEODO_URL);
 
-  const blocklist = raw.blocklist || [];
+  // Feodo Tracker returns a plain JSON array (not wrapped in an object)
+  const blocklist = Array.isArray(raw) ? raw : (raw.blocklist || []);
   console.log(`Got ${blocklist.length} entries`);
 
   // Extract unique IPs for geolocation

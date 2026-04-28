@@ -23,7 +23,7 @@ class BotnetLiveMap {
     this.activeFamilies = new Set();
 
     this.panelOpen   = false;
-    this._lastFetchedAt = null;
+    this._lastFetchedAt = undefined;
     this._pollTimer  = null;
   }
 
