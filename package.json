@@ -1,0 +1,6 @@
+{
+  "name": "botnet-live-maps",
+  "version": "1.0.0",
+  "description": "Live botnet C2 server map - powered by Feodo Tracker",
+  "private": true
+}
