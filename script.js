@@ -25,10 +25,15 @@ class BotnetLiveMap {
     this.panelOpen   = false;
     this._lastFetchedAt = undefined;
     this._pollTimer  = null;
+
+    this._theme      = 'dark';
+    this._searchTerm = '';
+    this._tileLayer  = null;
   }
 
   // ---- Entry point ----
   async init() {
+    this._loadTheme();
     this.initMap();
     this.setupKeyboard();
     await this.fetchLiveData();
@@ -45,7 +50,7 @@ class BotnetLiveMap {
       zoomControl: true,
     });
 
-    L.tileLayer(CONFIG.TILE_URL, {
+    this._tileLayer = L.tileLayer(this._tileUrl(), {
       attribution: CONFIG.TILE_ATTRIBUTION,
       subdomains:  'abcd',
       maxZoom:     20,
@@ -95,6 +100,8 @@ class BotnetLiveMap {
       this.renderDots();
       this.updateCount();
       this.setLastUpdate(new Date(data.fetched_at));
+      this._checkStale(data.fetched_at);
+      this._buildCountryBreakdown();
       this.setStatus('ok');
 
     } catch (err) {
@@ -120,7 +127,13 @@ class BotnetLiveMap {
     const statusOk = (server.status === 'online' && this.showOnline)
                   || (server.status !== 'online' && this.showOffline);
     const familyOk = this.activeFamilies.has(server.malware);
-    return statusOk && familyOk;
+    if (!statusOk || !familyOk) return false;
+    if (this._searchTerm) {
+      const t = this._searchTerm;
+      return (server.ip && server.ip.includes(t))
+          || (server.country && server.country.toLowerCase().includes(t));
+    }
+    return true;
   }
 
   addDot(server) {
@@ -161,9 +174,15 @@ class BotnetLiveMap {
     const color    = this.colorFor(server.malware);
     const isOnline = server.status === 'online';
 
+    const ipStr = server.ip + (server.port ? ':' + server.port : '');
     document.getElementById('server-info-body').innerHTML = `
       <div class="si-family" style="color:${color}">${this.labelFor(server.malware)}</div>
-      <div class="si-ip">${server.ip}${server.port ? ':' + server.port : ''}</div>
+      <div class="si-ip-row">
+        <span class="si-ip">${ipStr}</span>
+        <button class="si-copy-btn" onclick="app.copyIP('${ipStr}')" title="Copy to clipboard">
+          <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="4" y="4" width="9" height="10" rx="1.5"/><path d="M3 11H2a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v1"/></svg>
+        </button>
+      </div>
       <div class="si-row">
         <span class="si-label">Status</span>
         <span class="si-value ${isOnline ? 'si-online' : 'si-offline'}">${isOnline ? 'Online' : 'Offline'}</span>
@@ -200,7 +219,11 @@ class BotnetLiveMap {
   buildFamilyFilters() {
     const container = document.getElementById('family-filters');
     if (!container) return;
-    container.innerHTML = '';
+    container.innerHTML = `
+      <div class="filter-actions">
+        <button class="filter-all-btn" onclick="app.setAllFamilies(true)">All</button>
+        <button class="filter-all-btn" onclick="app.setAllFamilies(false)">None</button>
+      </div>`;
 
     const counts = {};
     for (const s of this.servers) {
@@ -287,9 +310,9 @@ class BotnetLiveMap {
   setupKeyboard() {
     document.addEventListener('keydown', e => {
       if (e.key === 'Escape') this.closeServerInfo();
-      if (e.key === 'f' && !e.ctrlKey && !e.metaKey && e.target.tagName !== 'INPUT') {
-        this.toggleFullscreen();
-      }
+      if (e.target.tagName === 'INPUT') return;
+      if (e.key === 'f' && !e.ctrlKey && !e.metaKey) this.toggleFullscreen();
+      if (e.key === 'p' && !e.ctrlKey && !e.metaKey) this.togglePanel();
     });
   }
 
@@ -332,5 +355,85 @@ class BotnetLiveMap {
   setSetupOverlay(visible) {
     const el = document.getElementById('setup-overlay');
     if (el) el.classList.toggle('hidden', !visible);
+  }
+
+  // ---- Theme ----
+  _loadTheme() {
+    this._theme = localStorage.getItem('botnet-theme') || 'dark';
+    document.documentElement.setAttribute('data-theme', this._theme);
+  }
+
+  _tileUrl() {
+    return this._theme === 'light' ? CONFIG.TILE_URL_LIGHT : CONFIG.TILE_URL;
+  }
+
+  toggleTheme() {
+    this._theme = this._theme === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', this._theme);
+    localStorage.setItem('botnet-theme', this._theme);
+    if (this._tileLayer) this._tileLayer.setUrl(this._tileUrl());
+  }
+
+  // ---- Stale data warning ----
+  _checkStale(fetchedAt) {
+    const el = document.getElementById('stale-warning');
+    if (!el || !fetchedAt) return;
+    const ageH = (Date.now() - new Date(fetchedAt).getTime()) / 3600000;
+    el.classList.toggle('hidden', ageH < 12);
+  }
+
+  // ---- Copy IP ----
+  copyIP(ipStr) {
+    navigator.clipboard.writeText(ipStr).then(() => {
+      const btn = document.querySelector('.si-copy-btn');
+      if (!btn) return;
+      btn.classList.add('copied');
+      setTimeout(() => btn.classList.remove('copied'), 1500);
+    }).catch(() => {});
+  }
+
+  // ---- All / None families ----
+  setAllFamilies(visible) {
+    if (visible) {
+      this.activeFamilies = new Set(this.families);
+    } else {
+      this.activeFamilies.clear();
+    }
+    document.querySelectorAll('.ff-item').forEach(el => {
+      el.classList.toggle('off', !visible);
+    });
+    this.renderDots();
+    this.updateCount();
+  }
+
+  // ---- Country breakdown ----
+  _buildCountryBreakdown() {
+    const container = document.getElementById('country-list');
+    if (!container) return;
+
+    const counts = {};
+    for (const s of this.servers) {
+      const c = s.country || 'Unknown';
+      counts[c] = (counts[c] || 0) + 1;
+    }
+
+    const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 12);
+    const max    = sorted[0]?.[1] || 1;
+
+    container.innerHTML = sorted.map(([country, count]) => `
+      <div class="cl-item">
+        <span class="cl-name">${country}</span>
+        <div class="cl-bar-wrap">
+          <div class="cl-bar" style="width:${Math.round(count / max * 100)}%"></div>
+        </div>
+        <span class="cl-count">${count}</span>
+      </div>`).join('');
+  }
+
+  // ---- Search ----
+  _onSearch(term) {
+    this._searchTerm = term.toLowerCase().trim();
+    this.renderDots();
+    this.updateCount();
   }
 }

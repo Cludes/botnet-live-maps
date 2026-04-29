@@ -12,7 +12,8 @@ const CONFIG = {
   MAP_MIN_ZOOM: 2,
   MAP_MAX_ZOOM: 18,
 
-  TILE_URL: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+  TILE_URL:       'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+  TILE_URL_LIGHT: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
   TILE_ATTRIBUTION:
     '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors ' +
     '&copy; <a href="https://carto.com/attributions">CARTO</a> | ' +
