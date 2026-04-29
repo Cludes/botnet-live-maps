@@ -27,6 +27,8 @@ class BotnetLiveMap {
     this.panelOpen   = false;
     this._lastFetchedAt = undefined;
     this._pollTimer  = null;
+    this._viewMode   = 'dots';
+    this._heatLayer  = null;
 
     this._theme      = 'dark';
     this._searchTerm = '';
@@ -60,7 +62,22 @@ class BotnetLiveMap {
       maxZoom:     20,
     }).addTo(this.map);
 
-    this.dotGroup = L.layerGroup().addTo(this.map);
+    this.dotGroup = L.markerClusterGroup({
+      maxClusterRadius: 50,
+      spiderfyOnMaxZoom: true,
+      showCoverageOnHover: false,
+      zoomToBoundsOnClick: true,
+      iconCreateFunction: cluster => {
+        const count = cluster.getChildCount();
+        const size  = count > 100 ? 44 : count > 20 ? 38 : 32;
+        return L.divIcon({
+          html:       `<div class="cluster-icon">${count}</div>`,
+          className:  '',
+          iconSize:   [size, size],
+          iconAnchor: [size / 2, size / 2],
+        });
+      },
+    }).addTo(this.map);
   }
 
   // ---- Fetch live.json ----
@@ -106,6 +123,8 @@ class BotnetLiveMap {
       this.setLastUpdate(new Date(data.fetched_at));
       this._checkStale(data.fetched_at);
       this._buildCountryBreakdown();
+      this._buildHostingBreakdown();
+      this._buildPortBreakdown();
       this.setStatus('ok');
 
     } catch (err) {
@@ -116,15 +135,41 @@ class BotnetLiveMap {
 
   // ---- Render all C2 dots ----
   renderDots() {
-    // Clear existing markers
     this.dotGroup.clearLayers();
     this.dotMarkers.clear();
 
-    for (const server of this.servers) {
-      if (!server.lat || !server.lng) continue;
-      if (!this.isVisible(server)) continue;
-      this.addDot(server);
+    const visible = this.servers.filter(s => s.lat && s.lng && this.isVisible(s));
+
+    if (this._viewMode === 'heat') {
+      this._buildHeatmap(visible);
+      return;
     }
+
+    if (this._heatLayer) { this._heatLayer.remove(); this._heatLayer = null; }
+    for (const server of visible) this.addDot(server);
+  }
+
+  // ---- View mode (dots / heatmap) ----
+  setViewMode(mode) {
+    this._viewMode = mode;
+    if (mode === 'heat') {
+      this.map.removeLayer(this.dotGroup);
+    } else {
+      if (this._heatLayer) { this._heatLayer.remove(); this._heatLayer = null; }
+      this.dotGroup.addTo(this.map);
+    }
+    this.renderDots();
+  }
+
+  _buildHeatmap(visibleServers) {
+    if (this._heatLayer) { this._heatLayer.remove(); this._heatLayer = null; }
+    const points = visibleServers.map(s => [s.lat, s.lng, s.status === 'online' ? 1.0 : 0.3]);
+    this._heatLayer = L.heatLayer(points, {
+      radius:   25,
+      blur:     15,
+      maxZoom:  10,
+      gradient: { 0.2: '#0044cc', 0.5: '#ff8800', 1.0: '#ff0000' },
+    }).addTo(this.map);
   }
 
   isVisible(server) {
@@ -424,19 +469,75 @@ class BotnetLiveMap {
   _buildCountryBreakdown() {
     const container = document.getElementById('country-list');
     if (!container) return;
-
     const counts = {};
     for (const s of this.servers) {
       const c = s.country || 'Unknown';
       counts[c] = (counts[c] || 0) + 1;
     }
-
     const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 12);
     const max    = sorted[0]?.[1] || 1;
-
     container.innerHTML = sorted.map(([country, count]) => `
       <div class="cl-item">
         <span class="cl-name">${country}</span>
+        <div class="cl-bar-wrap">
+          <div class="cl-bar" style="width:${Math.round(count / max * 100)}%"></div>
+        </div>
+        <span class="cl-count">${count}</span>
+      </div>`).join('');
+  }
+
+  // ---- Hosting provider breakdown ----
+  _buildHostingBreakdown() {
+    const container = document.getElementById('hosting-list');
+    if (!container) return;
+    const NORM = [
+      [/amazon|aws/i,          'Amazon AWS'],
+      [/digitalocean/i,        'DigitalOcean'],
+      [/microsoft|azure/i,     'Microsoft Azure'],
+      [/google/i,              'Google Cloud'],
+      [/cloudflare/i,          'Cloudflare'],
+      [/hetzner/i,             'Hetzner'],
+      [/ovh/i,                 'OVH'],
+      [/vultr/i,               'Vultr'],
+      [/linode|akamai/i,       'Linode/Akamai'],
+      [/sakura/i,              'Sakura Internet'],
+      [/alibaba|aliyun/i,      'Alibaba Cloud'],
+      [/tencent/i,             'Tencent Cloud'],
+    ];
+    const counts = {};
+    for (const s of this.servers) {
+      if (!s.as_name) continue;
+      let host = s.as_name;
+      const match = NORM.find(([re]) => re.test(host));
+      host = match ? match[1] : (host.length > 22 ? host.slice(0, 22) + '...' : host);
+      counts[host] = (counts[host] || 0) + 1;
+    }
+    const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 8);
+    const max    = sorted[0]?.[1] || 1;
+    container.innerHTML = sorted.map(([host, count]) => `
+      <div class="cl-item">
+        <span class="cl-name">${host}</span>
+        <div class="cl-bar-wrap">
+          <div class="cl-bar" style="width:${Math.round(count / max * 100)}%"></div>
+        </div>
+        <span class="cl-count">${count}</span>
+      </div>`).join('');
+  }
+
+  // ---- Port breakdown ----
+  _buildPortBreakdown() {
+    const container = document.getElementById('port-list');
+    if (!container) return;
+    const counts = {};
+    for (const s of this.servers) {
+      if (!s.port) continue;
+      counts[s.port] = (counts[s.port] || 0) + 1;
+    }
+    const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 8);
+    const max    = sorted[0]?.[1] || 1;
+    container.innerHTML = sorted.map(([port, count]) => `
+      <div class="cl-item">
+        <span class="cl-name">:${port}</span>
         <div class="cl-bar-wrap">
           <div class="cl-bar" style="width:${Math.round(count / max * 100)}%"></div>
         </div>

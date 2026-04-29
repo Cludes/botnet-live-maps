@@ -7,6 +7,8 @@
   <title>Botnet Live - C2 Server Map</title>
 
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" crossorigin="" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" crossorigin="" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -92,8 +94,28 @@
       </div>
 
       <div class="panel-section">
+        <label class="section-label">View Mode</label>
+        <label class="toggle-row">
+          <span>Heatmap</span>
+          <input type="checkbox" id="toggle-heatmap"
+                 onchange="app.setViewMode(this.checked ? 'heat' : 'dots')" />
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="panel-section">
         <label class="section-label">Top Countries</label>
         <div id="country-list"></div>
+      </div>
+
+      <div class="panel-section">
+        <label class="section-label">Top Hosters</label>
+        <div id="hosting-list"></div>
+      </div>
+
+      <div class="panel-section">
+        <label class="section-label">Top Ports</label>
+        <div id="port-list"></div>
       </div>
 
       <div class="panel-section">
@@ -149,6 +171,8 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script src="https://cdn.jsdelivr.net/npm/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js" crossorigin=""></script>
+  <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js" crossorigin=""></script>
   <script src="config.js"></script>
   <script src="script.js"></script>
   <script>

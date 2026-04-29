@@ -16,9 +16,10 @@ const net   = require('net');
 const fs    = require('fs');
 const path  = require('path');
 
-const FEODO_URL    = 'https://feodotracker.abuse.ch/downloads/ipblocklist.json';
-const C2INTEL_URL  = 'https://raw.githubusercontent.com/drb-ra/C2IntelFeeds/master/feeds/IPPortC2s-30day.csv';
-const IPAPI_URL    = 'http://ip-api.com/batch?fields=status,lat,lon,country,countryCode,isp,query';
+const FEODO_URL       = 'https://feodotracker.abuse.ch/downloads/ipblocklist.json';
+const C2INTEL_30D_URL = 'https://raw.githubusercontent.com/drb-ra/C2IntelFeeds/master/feeds/IPPortC2s-30day.csv';
+const C2INTEL_90D_URL = 'https://raw.githubusercontent.com/drb-ra/C2IntelFeeds/master/feeds/IPPortC2s-90day.csv';
+const IPAPI_URL       = 'http://ip-api.com/batch?fields=status,lat,lon,country,countryCode,isp,query';
 const OUT_FILE      = path.join(__dirname, '../../data/live.json');
 
 const BATCH_SIZE  = 100;
@@ -179,33 +180,41 @@ async function fetchFeodo() {
 }
 
 async function fetchC2IntelFeeds() {
-  console.log('Fetching C2IntelFeeds (30-day IP:port)...');
+  console.log('Fetching C2IntelFeeds (30-day + 90-day IP:port)...');
   try {
-    const text  = await getText(C2INTEL_URL);
-    const lines = text.split('\n').filter(l => l.trim() && !l.startsWith('#'));
-    console.log(`  ${lines.length} entries`);
-    return lines.map(line => {
-      const parts = line.split(',');
-      const ip    = (parts[0] || '').trim();
-      const port  = parseInt((parts[1] || '').trim(), 10) || null;
-      const ioc   = (parts.slice(2).join(',') || '').trim();
-      if (!ip) return null;
+    const [text30, text90] = await Promise.all([getText(C2INTEL_30D_URL), getText(C2INTEL_90D_URL)]);
 
-      // "Possible Cobaltstrike C2 IP" -> "Cobalt Strike"
-      let malware = ioc.replace(/^Possible\s+/i, '').replace(/\s+C2\s+(IP|Domain).*$/i, '').trim();
-      if (/cobalt.?strike/i.test(malware)) malware = 'Cobalt Strike';
+    const parseLines = text => text.split('\n')
+      .filter(l => l.trim() && !l.startsWith('#'))
+      .map(line => {
+        const parts = line.split(',');
+        const ip    = (parts[0] || '').trim();
+        const port  = parseInt((parts[1] || '').trim(), 10) || null;
+        const ioc   = (parts.slice(2).join(',') || '').trim();
+        if (!ip) return null;
+        let malware = ioc.replace(/^Possible\s+/i, '').replace(/\s+C2\s+(IP|Domain).*$/i, '').trim();
+        if (/cobalt.?strike/i.test(malware)) malware = 'Cobalt Strike';
+        return {
+          key:         `${ip}:${port || 0}`,
+          ip,
+          port,
+          status:      'offline',
+          malware:     malware || 'Unknown',
+          first_seen:  null,
+          last_online: null,
+          source:      'c2intel',
+        };
+      }).filter(Boolean);
 
-      return {
-        key:         `${ip}:${port || 0}`,
-        ip,
-        port,
-        status:      'offline',
-        malware:     malware || 'Unknown',
-        first_seen:  null,
-        last_online: null,
-        source:      'c2intel',
-      };
-    }).filter(Boolean);
+    const entries30 = parseLines(text30);
+    const entries90 = parseLines(text90);
+    const seen = new Map();
+    for (const e of [...entries30, ...entries90]) {
+      if (!seen.has(e.key)) seen.set(e.key, e);
+    }
+    const all = [...seen.values()];
+    console.log(`  ${all.length} unique entries (30d:${entries30.length} 90d:${entries90.length})`);
+    return all;
   } catch (err) {
     console.error(`  C2IntelFeeds failed: ${err.message}`);
     return [];
