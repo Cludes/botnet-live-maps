@@ -383,22 +383,6 @@ kbd {
 .si-online  { color: var(--green); font-weight: 600; }
 .si-offline { color: var(--text-dim); }
 
-/* ---- Cluster icon ---- */
-.cluster-icon {
-  background: rgba(220, 50, 50, 0.88);
-  border: 2px solid rgba(255, 255, 255, 0.55);
-  border-radius: 50%;
-  color: #fff;
-  font-size: 11px;
-  font-weight: 700;
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 0 8px rgba(220, 50, 50, 0.5);
-}
-
 /* ---- C2 dot marker ---- */
 .c2dot {
   width: 10px;

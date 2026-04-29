@@ -27,7 +27,7 @@ class BotnetLiveMap {
     this.panelOpen   = false;
     this._lastFetchedAt = undefined;
     this._pollTimer  = null;
-    this._viewMode   = 'dots';
+    this._viewMode   = 'heat';
     this._heatLayer  = null;
 
     this._theme      = 'dark';
@@ -62,22 +62,7 @@ class BotnetLiveMap {
       maxZoom:     20,
     }).addTo(this.map);
 
-    this.dotGroup = L.markerClusterGroup({
-      maxClusterRadius: 50,
-      spiderfyOnMaxZoom: true,
-      showCoverageOnHover: false,
-      zoomToBoundsOnClick: true,
-      iconCreateFunction: cluster => {
-        const count = cluster.getChildCount();
-        const size  = count > 100 ? 44 : count > 20 ? 38 : 32;
-        return L.divIcon({
-          html:       `<div class="cluster-icon">${count}</div>`,
-          className:  '',
-          iconSize:   [size, size],
-          iconAnchor: [size / 2, size / 2],
-        });
-      },
-    }).addTo(this.map);
+    this.dotGroup = L.layerGroup();
   }
 
   // ---- Fetch live.json ----
@@ -141,6 +126,7 @@ class BotnetLiveMap {
     const visible = this.servers.filter(s => s.lat && s.lng && this.isVisible(s));
 
     if (this._viewMode === 'heat') {
+      if (this.map.hasLayer(this.dotGroup)) this.map.removeLayer(this.dotGroup);
       this._buildHeatmap(visible);
       return;
     }
