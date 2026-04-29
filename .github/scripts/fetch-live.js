@@ -12,6 +12,7 @@
 
 const https = require('https');
 const http  = require('http');
+const net   = require('net');
 const fs    = require('fs');
 const path  = require('path');
 
@@ -88,6 +89,41 @@ function getText(url) {
 }
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ---- TCP probing ----
+
+function probePort(ip, port, timeoutMs = 3000) {
+  return new Promise(resolve => {
+    const socket = new net.Socket();
+    let done = false;
+    const finish = online => {
+      if (done) return;
+      done = true;
+      socket.destroy();
+      resolve(online);
+    };
+    socket.setTimeout(timeoutMs);
+    socket.on('connect', () => finish(true));
+    socket.on('timeout', () => finish(false));
+    socket.on('error',   () => finish(false));
+    socket.connect(port, ip);
+  });
+}
+
+async function probeEntries(entries, concurrency = 50, timeoutMs = 3000) {
+  const results = new Map();
+  const toProbe = entries.filter(e => e.port);
+  for (let i = 0; i < toProbe.length; i += concurrency) {
+    const batch = toProbe.slice(i, i + concurrency);
+    const batchResults = await Promise.all(
+      batch.map(e => probePort(e.ip, e.port, timeoutMs).then(online => ({ key: e.key, online })))
+    );
+    for (const { key, online } of batchResults) results.set(key, online);
+    process.stdout.write(`  Probed ${Math.min(i + concurrency, toProbe.length)}/${toProbe.length}\r`);
+  }
+  console.log(`  Probe complete: ${toProbe.length} endpoints checked`);
+  return results;
+}
 
 function chunks(arr, size) {
   const out = [];
@@ -196,6 +232,16 @@ async function main() {
   console.log(`Geolocating ${uniqueIps.length} unique IPs...`);
   const geoMap = await geolocate(uniqueIps);
   console.log(`Geolocation complete: ${Object.keys(geoMap).length}/${uniqueIps.length} resolved`);
+
+  // Probe C2IntelFeeds entries for live status (Feodo already has authoritative status)
+  const c2intelEntries = merged.filter(e => e.source === 'c2intel');
+  console.log(`\nProbing ${c2intelEntries.length} C2IntelFeeds endpoints for live status...`);
+  const probeResults = await probeEntries(c2intelEntries);
+  for (const entry of merged) {
+    if (entry.source === 'c2intel' && probeResults.has(entry.key)) {
+      entry.status = probeResults.get(entry.key) ? 'online' : 'offline';
+    }
+  }
 
   const servers = merged.map(entry => {
     const geo = geoMap[entry.ip] || {};
