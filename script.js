@@ -500,13 +500,20 @@ class BotnetLiveMap {
     const families = new Set(online.map(s => s.malware));
     const weights  = CONFIG.THREAT_WEIGHTS || {};
 
-    let score = 0;
-    score += online.length * 2;
-    score += families.size * 8;
-    for (const s of online) score += weights[s.malware] || 5;
-    score += this.servers.length * 0.05;
+    // Feodo = confirmed curated C2s — primary signal
+    const feodoOnline  = online.filter(s => s.source === 'feodo');
+    const c2intelCount = online.filter(s => s.source !== 'feodo').length;
 
-    const pct   = Math.min(100, Math.round(score / 8));
+    // Confirmed threat: sum of family weights for Feodo servers only
+    const confirmedScore = feodoOnline.reduce((sum, s) => sum + (weights[s.malware] || 5), 0);
+
+    // Scale signal: sqrt-scaled suspected active C2s, capped at 30
+    const scaleScore = Math.min(30, Math.round(Math.sqrt(c2intelCount) * 1.8));
+
+    // Diversity: more families = broader threat landscape, capped at 20
+    const diversityScore = Math.min(20, families.size * 4);
+
+    const pct   = Math.min(100, Math.round((confirmedScore + scaleScore + diversityScore) * 0.7));
     const label = pct < 25 ? 'LOW' : pct < 50 ? 'MODERATE' : pct < 75 ? 'HIGH' : 'CRITICAL';
     const cls   = pct < 25 ? 'tl-low' : pct < 50 ? 'tl-moderate' : pct < 75 ? 'tl-high' : 'tl-critical';
 
