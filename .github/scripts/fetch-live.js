@@ -1,10 +1,9 @@
 #!/usr/bin/env node
 // =============================================================
 //  fetch-live.js
-//  Fetches C2 data from three sources and merges them:
-//    - Feodo Tracker (abuse.ch) - banking trojans / loaders
-//    - ThreatFox    (abuse.ch) - broad malware IOC database
-//    - SSLBL        (abuse.ch) - SSL-based C2 blocklist
+//  Fetches C2 data from two sources and merges them:
+//    - Feodo Tracker  (abuse.ch)    - banking trojans / loaders
+//    - C2IntelFeeds   (drb-ra/C2IntelFeeds on GitHub) - 30-day IP:port feed
 //  Geo-enriches via ip-api.com, writes data/live.json.
 //  No API keys required.
 // =============================================================
@@ -16,10 +15,9 @@ const http  = require('http');
 const fs    = require('fs');
 const path  = require('path');
 
-const FEODO_URL     = 'https://feodotracker.abuse.ch/downloads/ipblocklist.json';
-const SSLBL_URL     = 'https://sslbl.abuse.ch/blacklist/sslipbl.json';
-const THREATFOX_URL = 'https://threatfox-api.abuse.ch/api/v1/';
-const IPAPI_URL     = 'http://ip-api.com/batch?fields=status,lat,lon,country,countryCode,isp,query';
+const FEODO_URL    = 'https://feodotracker.abuse.ch/downloads/ipblocklist.json';
+const C2INTEL_URL  = 'https://raw.githubusercontent.com/drb-ra/C2IntelFeeds/master/feeds/IPPortC2s-30day.csv';
+const IPAPI_URL    = 'http://ip-api.com/batch?fields=status,lat,lon,country,countryCode,isp,query';
 const OUT_FILE      = path.join(__dirname, '../../data/live.json');
 
 const BATCH_SIZE  = 100;
@@ -70,6 +68,22 @@ function post(url, payload) {
     req.on('error', reject);
     req.write(body);
     req.end();
+  });
+}
+
+function getText(url) {
+  return new Promise((resolve, reject) => {
+    const mod = url.startsWith('https') ? https : http;
+    mod.get(url, res => {
+      if (res.statusCode !== 200) {
+        reject(new Error(`GET ${url} -> HTTP ${res.statusCode}`));
+        res.resume();
+        return;
+      }
+      let body = '';
+      res.on('data', chunk => body += chunk);
+      res.on('end', () => resolve(body));
+    }).on('error', reject);
   });
 }
 
@@ -128,58 +142,36 @@ async function fetchFeodo() {
   }
 }
 
-async function fetchSSLBL() {
-  console.log('Fetching SSLBL...');
+async function fetchC2IntelFeeds() {
+  console.log('Fetching C2IntelFeeds (30-day IP:port)...');
   try {
-    const raw       = await get(SSLBL_URL);
-    const blocklist = raw.blacklist || [];
-    console.log(`  ${blocklist.length} entries`);
-    return blocklist.map(e => {
-      const malware = (e.Reason || 'Unknown').replace(/\s+C&C$/i, '').trim();
-      return {
-        key:         `${e.DstIP}:${e.DstPort || 0}`,
-        ip:          e.DstIP,
-        port:        e.DstPort ? parseInt(e.DstPort, 10) : null,
-        status:      'offline',
-        malware,
-        first_seen:  e.first_seen  || null,
-        last_online: null,
-        source:      'sslbl',
-      };
-    });
-  } catch (err) {
-    console.error(`  SSLBL failed: ${err.message}`);
-    return [];
-  }
-}
+    const text  = await getText(C2INTEL_URL);
+    const lines = text.split('\n').filter(l => l.trim() && !l.startsWith('#'));
+    console.log(`  ${lines.length} entries`);
+    return lines.map(line => {
+      const parts = line.split(',');
+      const ip    = (parts[0] || '').trim();
+      const port  = parseInt((parts[1] || '').trim(), 10) || null;
+      const ioc   = (parts.slice(2).join(',') || '').trim();
+      if (!ip) return null;
 
-async function fetchThreatFox() {
-  console.log('Fetching ThreatFox (last 14 days, ip:port IOCs)...');
-  try {
-    const raw = await post(THREATFOX_URL, { query: 'get_iocs', days: 14 });
-    if (raw.query_status !== 'ok' || !Array.isArray(raw.data)) {
-      console.log('  No data returned');
-      return [];
-    }
-    const iocs = raw.data.filter(e => e.ioc_type === 'ip:port' && (e.confidence_level || 0) >= 50);
-    console.log(`  ${iocs.length} ip:port IOCs (confidence >= 50, from ${raw.data.length} total)`);
-    return iocs.map(e => {
-      const lastColon = e.ioc.lastIndexOf(':');
-      const ip   = e.ioc.slice(0, lastColon);
-      const port = parseInt(e.ioc.slice(lastColon + 1), 10) || null;
+      // "Possible Cobaltstrike C2 IP" -> "Cobalt Strike"
+      let malware = ioc.replace(/^Possible\s+/i, '').replace(/\s+C2\s+(IP|Domain).*$/i, '').trim();
+      if (/cobalt.?strike/i.test(malware)) malware = 'Cobalt Strike';
+
       return {
         key:         `${ip}:${port || 0}`,
         ip,
         port,
         status:      'offline',
-        malware:     e.malware_printable || e.malware || 'Unknown',
-        first_seen:  e.first_seen  || null,
-        last_online: e.last_seen   || null,
-        source:      'threatfox',
+        malware:     malware || 'Unknown',
+        first_seen:  null,
+        last_online: null,
+        source:      'c2intel',
       };
-    });
+    }).filter(Boolean);
   } catch (err) {
-    console.error(`  ThreatFox failed: ${err.message}`);
+    console.error(`  C2IntelFeeds failed: ${err.message}`);
     return [];
   }
 }
@@ -187,20 +179,18 @@ async function fetchThreatFox() {
 // ---- Main ----
 
 async function main() {
-  const [feodo, sslbl, threatfox] = await Promise.all([
+  const [feodo, c2intel] = await Promise.all([
     fetchFeodo(),
-    fetchSSLBL(),
-    fetchThreatFox(),
+    fetchC2IntelFeeds(),
   ]);
 
-  // Deduplicate by ip:port key. Feodo takes priority (most curated),
-  // then SSLBL, then ThreatFox.
+  // Deduplicate by ip:port key. Feodo takes priority (most curated).
   const seen = new Map();
-  for (const entry of [...feodo, ...sslbl, ...threatfox]) {
+  for (const entry of [...feodo, ...c2intel]) {
     if (!seen.has(entry.key)) seen.set(entry.key, entry);
   }
   const merged = [...seen.values()];
-  console.log(`\nMerged: ${merged.length} unique entries (feodo:${feodo.length} sslbl:${sslbl.length} threatfox:${threatfox.length})`);
+  console.log(`\nMerged: ${merged.length} unique entries (feodo:${feodo.length} c2intel:${c2intel.length})`);
 
   const uniqueIps = [...new Set(merged.map(e => e.ip))];
   console.log(`Geolocating ${uniqueIps.length} unique IPs...`);

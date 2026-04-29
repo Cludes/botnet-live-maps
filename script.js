@@ -18,11 +18,10 @@ class BotnetLiveMap {
     this.servers     = [];        // full list from live.json
     this.families    = new Set(); // unique malware families seen
 
-    this.showOnline    = true;
-    this.showOffline   = true;
-    this.showFeodo     = true;
-    this.showThreatFox = true;
-    this.showSSLBL     = true;
+    this.showOnline   = true;
+    this.showOffline  = true;
+    this.showFeodo    = true;
+    this.showC2Intel  = true;
     this.activeFamilies = new Set();
 
     this.panelOpen   = false;
@@ -132,9 +131,8 @@ class BotnetLiveMap {
     const statusOk = (server.status === 'online' && this.showOnline)
                   || (server.status !== 'online' && this.showOffline);
     const src      = server.source || 'feodo';
-    const sourceOk = (src === 'feodo'     && this.showFeodo)
-                  || (src === 'sslbl'      && this.showSSLBL)
-                  || (src === 'threatfox'  && this.showThreatFox);
+    const sourceOk = (src === 'feodo'   && this.showFeodo)
+                  || (src === 'c2intel' && this.showC2Intel);
     const familyOk = this.activeFamilies.has(server.malware);
     if (!statusOk || !sourceOk || !familyOk) return false;
     if (this._searchTerm) {
@@ -304,11 +302,10 @@ class BotnetLiveMap {
 
   // ---- Filters ----
   setFilter(type, enabled) {
-    if (type === 'online')    this.showOnline    = enabled;
-    if (type === 'offline')   this.showOffline   = enabled;
-    if (type === 'feodo')     this.showFeodo     = enabled;
-    if (type === 'threatfox') this.showThreatFox = enabled;
-    if (type === 'sslbl')     this.showSSLBL     = enabled;
+    if (type === 'online')   this.showOnline  = enabled;
+    if (type === 'offline')  this.showOffline = enabled;
+    if (type === 'feodo')    this.showFeodo   = enabled;
+    if (type === 'c2intel')  this.showC2Intel = enabled;
     this.renderDots();
     this.updateCount();
   }

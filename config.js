@@ -27,9 +27,8 @@ const CONFIG = {
 
   // ---- Data source labels ----
   SOURCE_LABELS: {
-    feodo:     'Feodo Tracker',
-    sslbl:     'SSLBL',
-    threatfox: 'ThreatFox',
+    feodo:   'Feodo Tracker',
+    c2intel: 'C2IntelFeeds',
   },
 
   // ---- Malware families and their colors ----

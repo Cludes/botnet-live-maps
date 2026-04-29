@@ -614,9 +614,8 @@ kbd {
   vertical-align: middle;
   flex-shrink: 0;
 }
-.src-feodo::before     { background: #ff6666; }
-.src-threatfox::before { background: #ffaa44; }
-.src-sslbl::before     { background: #44cccc; }
+.src-feodo::before   { background: #ff6666; }
+.src-c2intel::before { background: #44aaff; }
 
 /* ---- Server info source badge ---- */
 .si-top {
@@ -641,9 +640,8 @@ kbd {
   flex-shrink: 0;
   margin-top: 3px;
 }
-.si-src-feodo     { color: #ff8888; border-color: rgba(255,68,68,0.35);   background: rgba(255,68,68,0.08); }
-.si-src-sslbl     { color: #44cccc; border-color: rgba(0,204,204,0.35);   background: rgba(0,204,204,0.08); }
-.si-src-threatfox { color: #ffaa44; border-color: rgba(255,170,68,0.35);  background: rgba(255,170,68,0.08); }
+.si-src-feodo   { color: #ff8888; border-color: rgba(255,68,68,0.35);  background: rgba(255,68,68,0.08); }
+.si-src-c2intel { color: #44aaff; border-color: rgba(68,170,255,0.35); background: rgba(68,170,255,0.08); }
 
 /* ---- Copy IP button ---- */
 .si-ip-row {
