@@ -391,19 +391,17 @@ kbd {
   border: 1.5px solid rgba(255, 255, 255, 0.5);
   cursor: pointer;
   position: relative;
-  will-change: transform;
   transition: transform 0.08s;
 }
 .c2dot:hover { transform: scale(1.6); }
 
-/* Pulse ring as ::after so only transform+opacity animate — no repaints */
+/* Pulse ring on ::after uses transform+opacity (GPU composited, no repaint) */
 .c2dot.online::after {
   content: '';
   position: absolute;
   inset: -2px;
   border-radius: 50%;
   background: var(--pulse-color, rgba(255,68,68,0.6));
-  will-change: transform, opacity;
   animation: c2pulse 2.2s ease-out infinite;
 }
 

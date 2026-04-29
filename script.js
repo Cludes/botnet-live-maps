@@ -64,7 +64,8 @@ class BotnetLiveMap {
       noWrap:      true,
     }).addTo(this.map);
 
-    this.dotGroup = L.layerGroup();
+    this._offlineRenderer = L.canvas({ padding: 0.5 });
+    this.dotGroup         = L.layerGroup();
   }
 
   // ---- Fetch live.json ----
@@ -188,22 +189,36 @@ class BotnetLiveMap {
   addDot(server) {
     const color    = this.colorFor(server.malware);
     const isOnline = server.status === 'online';
+    let marker;
 
-    const el = document.createElement('div');
-    el.className = `c2dot${isOnline ? ' online' : ''}`;
-    el.style.cssText = `background:${color};border-color:rgba(255,255,255,0.4);--pulse-color:${color}80;`;
+    if (isOnline) {
+      // DivIcon only for online servers so the pulse animation runs on ~284 elements, not 2558
+      const el = document.createElement('div');
+      el.className = 'c2dot online';
+      el.style.cssText = `background:${color};border-color:rgba(255,255,255,0.4);--pulse-color:${color}80;`;
+      const icon = L.divIcon({
+        html:       el,
+        className:  '',
+        iconSize:   [CONFIG.DOT_SIZE, CONFIG.DOT_SIZE],
+        iconAnchor: [CONFIG.DOT_SIZE / 2, CONFIG.DOT_SIZE / 2],
+      });
+      marker = L.marker([server.lat, server.lng], { icon, zIndexOffset: 200 });
+      this.dotMarkers.set(server.ip, { marker, el });
+    } else {
+      // Canvas circleMarker for offline — no DOM element, drawn on a single shared canvas
+      marker = L.circleMarker([server.lat, server.lng], {
+        renderer:    this._offlineRenderer,
+        radius:      4,
+        fillColor:   color,
+        fillOpacity: 0.6,
+        color:       'rgba(255,255,255,0.15)',
+        weight:      0.5,
+      });
+      this.dotMarkers.set(server.ip, { marker });
+    }
 
-    const icon = L.divIcon({
-      html:       el,
-      className:  '',
-      iconSize:   [CONFIG.DOT_SIZE, CONFIG.DOT_SIZE],
-      iconAnchor: [CONFIG.DOT_SIZE / 2, CONFIG.DOT_SIZE / 2],
-    });
-
-    const marker = L.marker([server.lat, server.lng], { icon, zIndexOffset: isOnline ? 200 : 0 });
     marker.on('click', () => this.showServerInfo(server));
     this.dotGroup.addLayer(marker);
-    this.dotMarkers.set(server.ip, { marker, el });
   }
 
   colorFor(malware) {
