@@ -48,6 +48,8 @@ class BotnetLiveMap {
       minZoom:  CONFIG.MAP_MIN_ZOOM,
       maxZoom:  CONFIG.MAP_MAX_ZOOM,
       zoomControl: true,
+      maxBounds:          [[-85, -180], [85, 180]],
+      maxBoundsViscosity: 1.0,
     });
 
     this._tileLayer = L.tileLayer(this._tileUrl(), {
