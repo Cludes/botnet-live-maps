@@ -29,6 +29,12 @@ class BotnetLiveMap {
     this._pollTimer  = null;
     this._viewMode   = 'heat';
     this._heatLayer  = null;
+    this.showArcs    = false;
+    this._arcCanvas  = null;
+    this._arcCtx     = null;
+    this._arcData    = [];
+    this._arcFrame   = null;
+    this._resizeArc  = null;
 
     this._theme      = 'dark';
     this._searchTerm = '';
@@ -113,6 +119,8 @@ class BotnetLiveMap {
       this._buildCountryBreakdown();
       this._buildHostingBreakdown();
       this._buildPortBreakdown();
+      this._computeThreatLevel();
+      if (this.showArcs) this._buildArcData();
       this.setStatus('ok');
 
     } catch (err) {
@@ -473,6 +481,137 @@ class BotnetLiveMap {
     });
     this.renderDots();
     this.updateCount();
+  }
+
+  // ---- Fit to online ----
+  fitToOnline() {
+    const online = this.servers.filter(s => s.status === 'online' && s.lat && s.lng);
+    if (!online.length) return;
+    const bounds = L.latLngBounds(online.map(s => [s.lat, s.lng]));
+    this.map.fitBounds(bounds, { padding: [50, 50], maxZoom: 8 });
+  }
+
+  // ---- Threat level ----
+  _computeThreatLevel() {
+    const el = document.getElementById('threat-level');
+    if (!el) return;
+
+    const online   = this.servers.filter(s => s.status === 'online');
+    const families = new Set(online.map(s => s.malware));
+    const weights  = CONFIG.THREAT_WEIGHTS || {};
+
+    let score = 0;
+    score += online.length * 2;
+    score += families.size * 8;
+    for (const s of online) score += weights[s.malware] || 5;
+    score += this.servers.length * 0.05;
+
+    const pct   = Math.min(100, Math.round(score / 8));
+    const label = pct < 25 ? 'LOW' : pct < 50 ? 'MODERATE' : pct < 75 ? 'HIGH' : 'CRITICAL';
+    const cls   = pct < 25 ? 'tl-low' : pct < 50 ? 'tl-moderate' : pct < 75 ? 'tl-high' : 'tl-critical';
+
+    el.className   = `threat-level ${cls}`;
+    el.textContent = `THREAT ${label} ${pct}`;
+    el.classList.remove('hidden');
+  }
+
+  // ---- Attack arcs ----
+  setArcs(enabled) {
+    this.showArcs = enabled;
+    if (enabled) {
+      if (!this._arcCanvas) this._initArcCanvas();
+      this._arcCanvas.style.display = '';
+      this._buildArcData();
+      this._tickArcs();
+    } else {
+      if (this._arcFrame) { cancelAnimationFrame(this._arcFrame); this._arcFrame = null; }
+      if (this._arcCanvas && this._arcCtx) {
+        this._arcCtx.clearRect(0, 0, this._arcCanvas.width, this._arcCanvas.height);
+        this._arcCanvas.style.display = 'none';
+      }
+    }
+  }
+
+  _initArcCanvas() {
+    const container = this.map.getContainer();
+    this._arcCanvas = document.createElement('canvas');
+    this._arcCanvas.style.cssText = 'position:absolute;top:0;left:0;pointer-events:none;z-index:550;';
+    container.appendChild(this._arcCanvas);
+    this._arcCtx = this._arcCanvas.getContext('2d');
+    this._resizeArc = () => {
+      this._arcCanvas.width  = container.offsetWidth;
+      this._arcCanvas.height = container.offsetHeight;
+    };
+    window.addEventListener('resize', this._resizeArc);
+    this._resizeArc();
+  }
+
+  _buildArcData() {
+    const online  = this.servers.filter(s => s.status === 'online' && s.lat && s.lng);
+    const capped  = online.slice(0, 75);
+    this._arcData = [];
+    for (const server of capped) {
+      const color = this.colorFor(server.malware);
+      for (let i = 0; i < 2; i++) {
+        const angle  = Math.random() * Math.PI * 2;
+        const dist   = 12 + Math.random() * 22;
+        const endLat = Math.max(-75, Math.min(75, server.lat + Math.cos(angle) * dist));
+        const endLng = server.lng + Math.sin(angle) * dist;
+        this._arcData.push({
+          sLat: server.lat, sLng: server.lng,
+          eLat: endLat,     eLng: endLng,
+          color,
+          t:     Math.random(),
+          speed: 0.004 + Math.random() * 0.003,
+        });
+      }
+    }
+  }
+
+  _tickArcs() {
+    if (!this.showArcs) return;
+    const canvas = this._arcCanvas;
+    const ctx    = this._arcCtx;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    for (const arc of this._arcData) {
+      arc.t += arc.speed;
+      if (arc.t > 1) arc.t = 0;
+
+      const s = this.map.latLngToContainerPoint([arc.sLat, arc.sLng]);
+      const e = this.map.latLngToContainerPoint([arc.eLat, arc.eLng]);
+
+      // Skip off-screen arcs
+      const w = canvas.width, h = canvas.height;
+      if (s.x < -300 || s.x > w + 300 || s.y < -300 || s.y > h + 300) continue;
+
+      // Bezier control point (perpendicular to midpoint)
+      const cx = (s.x + e.x) / 2 - (e.y - s.y) * 0.4;
+      const cy = (s.y + e.y) / 2 + (e.x - s.x) * 0.4;
+
+      // Faint full arc path
+      ctx.beginPath();
+      ctx.moveTo(s.x, s.y);
+      ctx.quadraticCurveTo(cx, cy, e.x, e.y);
+      ctx.strokeStyle = arc.color + '28';
+      ctx.lineWidth   = 0.6;
+      ctx.stroke();
+
+      // Moving trail: 8 dots fading behind the head
+      for (let i = 0; i < 8; i++) {
+        const tt = Math.max(0, arc.t - i * 0.014);
+        const px = (1-tt)*(1-tt)*s.x + 2*(1-tt)*tt*cx + tt*tt*e.x;
+        const py = (1-tt)*(1-tt)*s.y + 2*(1-tt)*tt*cy + tt*tt*e.y;
+        ctx.globalAlpha = ((8 - i) / 8) * 0.85;
+        ctx.fillStyle   = arc.color;
+        ctx.beginPath();
+        ctx.arc(px, py, Math.max(0.5, 2.5 - i * 0.25), 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    this._arcFrame = requestAnimationFrame(() => this._tickArcs());
   }
 
   // ---- Country breakdown ----

@@ -28,6 +28,7 @@
 
       <div id="header-status">
         <span id="server-count">Connecting...</span>
+        <span id="threat-level" class="threat-level tl-low hidden">THREAT LOW</span>
         <span id="last-update"></span>
         <span id="stale-warning" class="hidden">Data stale</span>
         <span id="api-dot" class="dot-loading" title="Status">●</span>
@@ -99,6 +100,12 @@
                  onchange="app.setViewMode(this.checked ? 'heat' : 'dots')" />
           <span class="slider"></span>
         </label>
+        <label class="toggle-row">
+          <span>Attack Arcs</span>
+          <input type="checkbox" id="toggle-arcs"
+                 onchange="app.setArcs(this.checked)" />
+          <span class="slider"></span>
+        </label>
       </div>
 
       <div class="panel-section">
@@ -129,6 +136,7 @@
         </div>
         <div class="action-row" style="margin-top:8px">
           <button class="action-btn" onclick="app.fetchLiveData()">Refresh Now</button>
+          <button class="action-btn" onclick="app.fitToOnline()">Fit to Online</button>
         </div>
       </div>
 

@@ -76,4 +76,27 @@ const CONFIG = {
   },
 
   DEFAULT_COLOR: '#888888',
+
+  // ---- Threat level weights (per online server of that family) ----
+  THREAT_WEIGHTS: {
+    'Emotet':        50,
+    'QakBot':        40, 'Qakbot':      40,
+    'TrickBot':      40,
+    'BazarLoader':   35,
+    'IcedID':        35,
+    'Dridex':        30,
+    'Pikabot':       30,
+    'LockBit':       45,
+    'REvil':         45,
+    'BlackMatter':   40,
+    'SmokeLoader':   25,
+    'Cobalt Strike': 20, 'CobaltStrike': 20,
+    'Havoc':         20,
+    'LummaC2':       20, 'Lumma':        20,
+    'Metasploit':    15,
+    'Sliver':        15,
+    'RedLine':       15, 'RedLine Stealer': 15,
+    'AsyncRAT':      10,
+    'njRAT':         10, 'NjRAT':         10,
+  },
 };

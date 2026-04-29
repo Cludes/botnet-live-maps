@@ -92,6 +92,25 @@ body {
 }
 
 #server-count   { color: var(--text); font-weight: 600; font-size: 13px; }
+
+.threat-level {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  border: 1px solid;
+  white-space: nowrap;
+}
+.tl-low      { color: #44cc88; border-color: rgba(68,204,136,0.4); background: rgba(68,204,136,0.08); }
+.tl-moderate { color: #ffcc00; border-color: rgba(255,204,0,0.4);  background: rgba(255,204,0,0.08);  }
+.tl-high     { color: #ff8800; border-color: rgba(255,136,0,0.4);  background: rgba(255,136,0,0.08);  }
+.tl-critical { color: #ff3300; border-color: rgba(255,51,0,0.4);   background: rgba(255,51,0,0.1);    animation: tl-pulse 1.5s ease-in-out infinite; }
+
+@keyframes tl-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.6; }
+}
 #last-update    { color: var(--text-dim); font-size: 12px; }
 #stale-warning  { color: var(--amber); font-size: 12px; font-weight: 600; }
 #stale-warning.hidden { display: none; }
