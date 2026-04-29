@@ -390,18 +390,26 @@ kbd {
   border-radius: 50%;
   border: 1.5px solid rgba(255, 255, 255, 0.5);
   cursor: pointer;
+  position: relative;
+  will-change: transform;
   transition: transform 0.08s;
 }
 .c2dot:hover { transform: scale(1.6); }
 
-.c2dot.online {
+/* Pulse ring as ::after so only transform+opacity animate — no repaints */
+.c2dot.online::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 50%;
+  background: var(--pulse-color, rgba(255,68,68,0.6));
+  will-change: transform, opacity;
   animation: c2pulse 2.2s ease-out infinite;
 }
 
 @keyframes c2pulse {
-  0%   { box-shadow: 0 0 0 0   var(--pulse-color, rgba(255,68,68,0.8)); }
-  70%  { box-shadow: 0 0 0 9px var(--pulse-color, rgba(255,68,68,0)); }
-  100% { box-shadow: 0 0 0 0   var(--pulse-color, rgba(255,68,68,0)); }
+  0%   { transform: scale(1);   opacity: 0.8; }
+  100% { transform: scale(4.5); opacity: 0;   }
 }
 
 /* ---- Legend ---- */
