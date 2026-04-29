@@ -51,7 +51,8 @@ class BotnetLiveMap {
       zoom:     CONFIG.MAP_ZOOM,
       minZoom:  CONFIG.MAP_MIN_ZOOM,
       maxZoom:  CONFIG.MAP_MAX_ZOOM,
-      zoomControl: true,
+      zoomControl:        true,
+      worldCopyJump:      false,
       maxBounds:          [[-85, -180], [85, 180]],
       maxBoundsViscosity: 1.0,
     });
@@ -60,6 +61,7 @@ class BotnetLiveMap {
       attribution: CONFIG.TILE_ATTRIBUTION,
       subdomains:  'abcd',
       maxZoom:     20,
+      noWrap:      true,
     }).addTo(this.map);
 
     this.dotGroup = L.layerGroup();
@@ -151,10 +153,19 @@ class BotnetLiveMap {
     if (this._heatLayer) { this._heatLayer.remove(); this._heatLayer = null; }
     const points = visibleServers.map(s => [s.lat, s.lng, s.status === 'online' ? 1.0 : 0.3]);
     this._heatLayer = L.heatLayer(points, {
-      radius:   25,
-      blur:     15,
+      radius:   28,
+      blur:     18,
       maxZoom:  10,
-      gradient: { 0.2: '#0044cc', 0.5: '#ff8800', 1.0: '#ff0000' },
+      gradient: {
+        0.0:  'rgba(0,0,0,0)',
+        0.25: '#00005a',
+        0.4:  '#0033cc',
+        0.55: '#00aaff',
+        0.7:  '#00ffcc',
+        0.82: '#ffdd00',
+        0.92: '#ff6600',
+        1.0:  '#ffffff',
+      },
     }).addTo(this.map);
   }
 
