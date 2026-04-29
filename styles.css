@@ -603,6 +603,48 @@ kbd {
 }
 .filter-all-btn:hover { background: rgba(255,255,255,0.1); color: var(--text); }
 
+/* ---- Source filter labels ---- */
+.src-label::before {
+  content: '';
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  margin-right: 7px;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+.src-feodo::before     { background: #ff6666; }
+.src-threatfox::before { background: #ffaa44; }
+.src-sslbl::before     { background: #44cccc; }
+
+/* ---- Server info source badge ---- */
+.si-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 3px;
+}
+
+.si-top .si-family { margin-bottom: 0; }
+
+.si-src-badge {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid;
+  white-space: nowrap;
+  flex-shrink: 0;
+  margin-top: 3px;
+}
+.si-src-feodo     { color: #ff8888; border-color: rgba(255,68,68,0.35);   background: rgba(255,68,68,0.08); }
+.si-src-sslbl     { color: #44cccc; border-color: rgba(0,204,204,0.35);   background: rgba(0,204,204,0.08); }
+.si-src-threatfox { color: #ffaa44; border-color: rgba(255,170,68,0.35);  background: rgba(255,170,68,0.08); }
+
 /* ---- Copy IP button ---- */
 .si-ip-row {
   display: flex;

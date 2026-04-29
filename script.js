@@ -18,8 +18,11 @@ class BotnetLiveMap {
     this.servers     = [];        // full list from live.json
     this.families    = new Set(); // unique malware families seen
 
-    this.showOnline  = true;
-    this.showOffline = true;
+    this.showOnline    = true;
+    this.showOffline   = true;
+    this.showFeodo     = true;
+    this.showThreatFox = true;
+    this.showSSLBL     = true;
     this.activeFamilies = new Set();
 
     this.panelOpen   = false;
@@ -128,8 +131,12 @@ class BotnetLiveMap {
   isVisible(server) {
     const statusOk = (server.status === 'online' && this.showOnline)
                   || (server.status !== 'online' && this.showOffline);
+    const src      = server.source || 'feodo';
+    const sourceOk = (src === 'feodo'     && this.showFeodo)
+                  || (src === 'sslbl'      && this.showSSLBL)
+                  || (src === 'threatfox'  && this.showThreatFox);
     const familyOk = this.activeFamilies.has(server.malware);
-    if (!statusOk || !familyOk) return false;
+    if (!statusOk || !sourceOk || !familyOk) return false;
     if (this._searchTerm) {
       const t = this._searchTerm;
       return (server.ip && server.ip.includes(t))
@@ -176,9 +183,14 @@ class BotnetLiveMap {
     const color    = this.colorFor(server.malware);
     const isOnline = server.status === 'online';
 
-    const ipStr = server.ip + (server.port ? ':' + server.port : '');
+    const ipStr    = server.ip + (server.port ? ':' + server.port : '');
+    const srcKey   = server.source || 'feodo';
+    const srcLabel = CONFIG.SOURCE_LABELS[srcKey] || 'Feodo Tracker';
     document.getElementById('server-info-body').innerHTML = `
-      <div class="si-family" style="color:${color}">${this.labelFor(server.malware)}</div>
+      <div class="si-top">
+        <div class="si-family" style="color:${color}">${this.labelFor(server.malware)}</div>
+        <span class="si-src-badge si-src-${srcKey}">${srcLabel}</span>
+      </div>
       <div class="si-ip-row">
         <span class="si-ip">${ipStr}</span>
         <button class="si-copy-btn" onclick="app.copyIP('${ipStr}')" title="Copy to clipboard">
@@ -292,8 +304,11 @@ class BotnetLiveMap {
 
   // ---- Filters ----
   setFilter(type, enabled) {
-    if (type === 'online')  this.showOnline  = enabled;
-    if (type === 'offline') this.showOffline = enabled;
+    if (type === 'online')    this.showOnline    = enabled;
+    if (type === 'offline')   this.showOffline   = enabled;
+    if (type === 'feodo')     this.showFeodo     = enabled;
+    if (type === 'threatfox') this.showThreatFox = enabled;
+    if (type === 'sslbl')     this.showSSLBL     = enabled;
     this.renderDots();
     this.updateCount();
   }

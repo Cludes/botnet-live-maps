@@ -76,6 +76,28 @@
       </div>
 
       <div class="panel-section">
+        <label class="section-label">Data Sources</label>
+        <label class="toggle-row">
+          <span class="src-label src-feodo">Feodo Tracker</span>
+          <input type="checkbox" id="toggle-feodo" checked
+                 onchange="app.setFilter('feodo', this.checked)" />
+          <span class="slider"></span>
+        </label>
+        <label class="toggle-row">
+          <span class="src-label src-threatfox">ThreatFox</span>
+          <input type="checkbox" id="toggle-threatfox" checked
+                 onchange="app.setFilter('threatfox', this.checked)" />
+          <span class="slider"></span>
+        </label>
+        <label class="toggle-row">
+          <span class="src-label src-sslbl">SSLBL</span>
+          <input type="checkbox" id="toggle-sslbl" checked
+                 onchange="app.setFilter('sslbl', this.checked)" />
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="panel-section">
         <label class="section-label">Top Countries</label>
         <div id="country-list"></div>
       </div>
@@ -97,7 +119,7 @@
       </div>
 
       <footer class="panel-footer">
-        <p>C2 data &copy; <a href="https://feodotracker.abuse.ch/" target="_blank" rel="noopener">Feodo Tracker / abuse.ch</a></p>
+        <p>C2 data &copy; <a href="https://feodotracker.abuse.ch/" target="_blank" rel="noopener">Feodo Tracker</a>, <a href="https://threatfox.abuse.ch/" target="_blank" rel="noopener">ThreatFox</a>, <a href="https://sslbl.abuse.ch/" target="_blank" rel="noopener">SSLBL</a> (abuse.ch)</p>
         <p>Licensed under <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a></p>
         <p style="margin-top:8px;color:#444">Press <kbd>F</kbd> fullscreen &nbsp; <kbd>P</kbd> panel</p>
       </footer>
