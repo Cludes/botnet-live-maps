@@ -64,7 +64,8 @@ class BotnetLiveMap {
       noWrap:      true,
     }).addTo(this.map);
 
-    this.dotGroup = L.layerGroup();
+    this._renderer = L.canvas({ padding: 0.5 });
+    this.dotGroup  = L.layerGroup();
   }
 
   // ---- Fetch live.json ----
@@ -189,23 +190,18 @@ class BotnetLiveMap {
     const color    = this.colorFor(server.malware);
     const isOnline = server.status === 'online';
 
-    const el = document.createElement('div');
-    el.className = `c2dot${isOnline ? ' online' : ''}`;
-    // Set CSS custom property for pulse color so each family pulses in its own color
-    el.style.cssText = `background:${color};border-color:rgba(255,255,255,0.4);--pulse-color:${color}80;`;
-
-    const icon = L.divIcon({
-      html:       el,
-      className:  '',
-      iconSize:   [CONFIG.DOT_SIZE, CONFIG.DOT_SIZE],
-      iconAnchor: [CONFIG.DOT_SIZE / 2, CONFIG.DOT_SIZE / 2],
+    const marker = L.circleMarker([server.lat, server.lng], {
+      renderer:    this._renderer,
+      radius:      isOnline ? 6 : 3.5,
+      fillColor:   color,
+      fillOpacity: isOnline ? 1.0 : 0.55,
+      color:       isOnline ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.12)',
+      weight:      isOnline ? 2 : 0.5,
     });
 
-    const marker = L.marker([server.lat, server.lng], { icon, zIndexOffset: isOnline ? 200 : 0 });
     marker.on('click', () => this.showServerInfo(server));
-
     this.dotGroup.addLayer(marker);
-    this.dotMarkers.set(server.ip, { marker, el });
+    this.dotMarkers.set(server.ip, { marker });
   }
 
   colorFor(malware) {
@@ -338,7 +334,7 @@ class BotnetLiveMap {
     const onlineItem = document.createElement('div');
     onlineItem.className = 'legend-item';
     onlineItem.style.marginTop = '8px';
-    onlineItem.innerHTML = `<i class="ldot" style="background:#fff;opacity:0.7;animation:c2pulse 2.2s ease-out infinite"></i>Online (pulsing)`;
+    onlineItem.innerHTML = `<i class="ldot" style="background:#fff;opacity:0.85;box-shadow:0 0 4px #fff"></i>Online (large/bright)`;
     container.appendChild(onlineItem);
   }
 
