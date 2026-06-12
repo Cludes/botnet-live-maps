@@ -1,10 +1,9 @@
 #!/usr/bin/env node
 // =============================================================
 //  fetch-live.js
-//  Fetches data from three sources and merges them:
-//    - Feodo Tracker  (abuse.ch)    - confirmed banking trojan C2s
-//    - C2IntelFeeds   (drb-ra)      - suspected C2 IP:port (30+90 day)
-//    - URLhaus        (abuse.ch)    - live malware distribution servers
+//  Fetches C2 data from two sources and merges them:
+//    - Feodo Tracker  (abuse.ch)    - banking trojans / loaders
+//    - C2IntelFeeds   (drb-ra/C2IntelFeeds on GitHub) - 30-day IP:port feed
 //  Geo-enriches via ip-api.com, writes data/live.json.
 //  No API keys required.
 // =============================================================
@@ -20,7 +19,6 @@ const path  = require('path');
 const FEODO_URL       = 'https://feodotracker.abuse.ch/downloads/ipblocklist.json';
 const C2INTEL_30D_URL = 'https://raw.githubusercontent.com/drb-ra/C2IntelFeeds/master/feeds/IPPortC2s-30day.csv';
 const C2INTEL_90D_URL = 'https://raw.githubusercontent.com/drb-ra/C2IntelFeeds/master/feeds/IPPortC2s-90day.csv';
-const URLHAUS_URL     = 'https://urlhaus.abuse.ch/downloads/csv_online/';
 const IPAPI_URL       = 'http://ip-api.com/batch?fields=status,lat,lon,country,countryCode,isp,query';
 const OUT_FILE      = path.join(__dirname, '../../data/live.json');
 
@@ -223,92 +221,28 @@ async function fetchC2IntelFeeds() {
   }
 }
 
-async function fetchURLhaus() {
-  console.log('Fetching URLhaus (live malware distribution, IP-only)...');
-  try {
-    const text = await getText(URLHAUS_URL);
-    const lines = text.split('\n').filter(l => l.trim() && !l.startsWith('#'));
-
-    // Simple CSV parser that handles quoted fields containing commas
-    const parseCSVLine = line => {
-      const fields = [];
-      let field = '', inQuote = false;
-      for (const ch of line) {
-        if (ch === '"')            inQuote = !inQuote;
-        else if (ch === ',' && !inQuote) { fields.push(field); field = ''; }
-        else                       field += ch;
-      }
-      fields.push(field);
-      return fields;
-    };
-
-    const seen = new Map();
-    for (const line of lines) {
-      const f = parseCSVLine(line);
-      if (f.length < 7) continue;
-      const [, dateadded, url, , last_online, , tags] = f;
-
-      let hostname, port;
-      try {
-        const u = new URL(url);
-        hostname = u.hostname;
-        port     = u.port ? parseInt(u.port) : (u.protocol === 'https:' ? 443 : 80);
-      } catch { continue; }
-
-      // Skip domain-based URLs — IP only to avoid DNS resolution
-      if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(hostname)) continue;
-
-      // Extract meaningful malware family: skip lowercase arch/format tags, keep named families
-      const tagList = tags.split(',').map(t => t.trim()).filter(t => t && t !== 'None' && /[A-Z]/.test(t));
-      const malware = tagList.length ? tagList[tagList.length - 1] : 'Malware Dropper';
-
-      const key = `${hostname}:${port || 0}`;
-      if (!seen.has(key)) {
-        seen.set(key, {
-          key,
-          ip:          hostname,
-          port:        port || null,
-          status:      'online', // URLhaus csv_online already verified
-          malware,
-          first_seen:  dateadded  || null,
-          last_online: last_online || null,
-          source:      'urlhaus',
-        });
-      }
-    }
-
-    const results = [...seen.values()];
-    console.log(`  ${results.length} unique IP entries`);
-    return results;
-  } catch (err) {
-    console.error(`  URLhaus failed: ${err.message}`);
-    return [];
-  }
-}
-
 // ---- Main ----
 
 async function main() {
-  const [feodo, c2intel, urlhaus] = await Promise.all([
+  const [feodo, c2intel] = await Promise.all([
     fetchFeodo(),
     fetchC2IntelFeeds(),
-    fetchURLhaus(),
   ]);
 
-  // Deduplicate by ip:port key. Priority: Feodo > C2Intel > URLhaus.
+  // Deduplicate by ip:port key. Feodo takes priority (most curated).
   const seen = new Map();
-  for (const entry of [...feodo, ...c2intel, ...urlhaus]) {
+  for (const entry of [...feodo, ...c2intel]) {
     if (!seen.has(entry.key)) seen.set(entry.key, entry);
   }
   const merged = [...seen.values()];
-  console.log(`\nMerged: ${merged.length} unique entries (feodo:${feodo.length} c2intel:${c2intel.length} urlhaus:${urlhaus.length})`);
+  console.log(`\nMerged: ${merged.length} unique entries (feodo:${feodo.length} c2intel:${c2intel.length})`);
 
   const uniqueIps = [...new Set(merged.map(e => e.ip))];
   console.log(`Geolocating ${uniqueIps.length} unique IPs...`);
   const geoMap = await geolocate(uniqueIps);
   console.log(`Geolocation complete: ${Object.keys(geoMap).length}/${uniqueIps.length} resolved`);
 
-  // Probe C2IntelFeeds entries only — Feodo and URLhaus already have verified status
+  // Probe C2IntelFeeds entries for live status (Feodo already has authoritative status)
   const c2intelEntries = merged.filter(e => e.source === 'c2intel');
   console.log(`\nProbing ${c2intelEntries.length} C2IntelFeeds endpoints for live status...`);
   const probeResults = await probeEntries(c2intelEntries);

@@ -22,7 +22,6 @@ class BotnetLiveMap {
     this.showOffline  = true;
     this.showFeodo    = true;
     this.showC2Intel  = true;
-    this.showURLhaus  = true;
     this.activeFamilies = new Set();
 
     this.panelOpen   = false;
@@ -184,8 +183,7 @@ class BotnetLiveMap {
                   || (server.status !== 'online' && this.showOffline);
     const src      = server.source || 'feodo';
     const sourceOk = (src === 'feodo'   && this.showFeodo)
-                  || (src === 'c2intel' && this.showC2Intel)
-                  || (src === 'urlhaus' && this.showURLhaus);
+                  || (src === 'c2intel' && this.showC2Intel);
     const familyOk = this.activeFamilies.has(server.malware);
     if (!statusOk || !sourceOk || !familyOk) return false;
     if (this._searchTerm) {
@@ -371,7 +369,6 @@ class BotnetLiveMap {
     if (type === 'offline')  this.showOffline = enabled;
     if (type === 'feodo')    this.showFeodo   = enabled;
     if (type === 'c2intel')  this.showC2Intel = enabled;
-    if (type === 'urlhaus')  this.showURLhaus = enabled;
     this.renderDots();
     this.updateCount();
   }

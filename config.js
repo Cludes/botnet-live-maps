@@ -29,7 +29,6 @@ const CONFIG = {
   SOURCE_LABELS: {
     feodo:   'Feodo Tracker',
     c2intel: 'C2IntelFeeds',
-    urlhaus: 'URLhaus',
   },
 
   // ---- Malware families and their colors ----
@@ -74,12 +73,6 @@ const CONFIG = {
     'LockBit':         { color: '#ff2255', label: 'LockBit' },
     'REvil':           { color: '#dd1144', label: 'REvil' },
     'BlackMatter':     { color: '#cc0033', label: 'BlackMatter' },
-    // URLhaus malware droppers
-    'Mozi':            { color: '#00ff44', label: 'Mozi' },
-    'Mirai':           { color: '#44ff88', label: 'Mirai' },
-    'Gafgyt':          { color: '#88ffaa', label: 'Gafgyt' },
-    'ClearFake':       { color: '#ffee55', label: 'ClearFake' },
-    'Malware Dropper': { color: '#aaaaaa', label: 'Malware Dropper' },
   },
 
   DEFAULT_COLOR: '#888888',
